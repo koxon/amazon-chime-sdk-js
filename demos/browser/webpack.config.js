@@ -3,7 +3,7 @@
 
 /* eslint-disable */
 var webpack = require('webpack');
-var HtmlWebpackInlineSourcePlugin = require('html-webpack-inline-source-plugin');
+// var HtmlWebpackInlineSourcePlugin = require('html-webpack-inline-source-plugin');
 var HtmlWebpackPlugin = require('html-webpack-plugin');
 /* eslint-enable */
 
@@ -13,12 +13,12 @@ module.exports = env => {
   return {
     plugins: [
       new HtmlWebpackPlugin({
-        inlineSource: '.(js|css)$',
+        // inlineSource: '.(js|css)$',
         template: __dirname + `/app/${app}/${app}.html`,
         filename: __dirname + `/dist/${app}.html`,
-        inject: 'head',
+        inject: false,
       }),
-      new HtmlWebpackInlineSourcePlugin(),
+      // new HtmlWebpackInlineSourcePlugin(),
       new webpack.EnvironmentPlugin({
         IS_LOCAL: process.env.npm_config_is_local === 'true' ? 'true' : 'false'
       })

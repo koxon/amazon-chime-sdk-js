@@ -4,6 +4,7 @@
 const AWS = require('aws-sdk');
 const compression = require('compression');
 const fs = require('fs');
+const static = require('node-static');
 const http = require('http');
 const url = require('url');
 const { v4: uuidv4 } = require('uuid');
@@ -13,6 +14,8 @@ const meetingTable = {};
 
 // Use local host for application server
 const host = '127.0.0.1:8080';
+
+var file = new(static.Server)();
 
 // Load the contents of the web application to be used as the index page
 const indexPage = fs.readFileSync(`dist/${process.env.npm_config_app || 'meetingV2'}.html`);
@@ -87,6 +90,8 @@ http.createServer({}, async (request, response) => {
         MeetingId: meetingTable[requestUrl.query.title].Meeting.MeetingId,
       }).promise();
       respond(response, 200, 'application/json', JSON.stringify({}));
+    } else if (request.method === 'GET') {
+       file.serve(request, response);
     } else {
       respond(response, 404, 'text/html', '404 Not Found');
     }
