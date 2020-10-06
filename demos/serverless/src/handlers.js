@@ -13,6 +13,12 @@ const ddb = new AWS.DynamoDB();
 // the meeting is hosted in.
 const chime = new AWS.Chime({ region: 'us-east-1' });
 
+// IVS SDK
+const ivs = new AWS.IVS();
+
+// ECS SDK
+const ecs = new AWS.ECS();
+
 // Set the AWS SDK Chime endpoint. The global endpoint is https://service.chime.aws.amazon.com.
 chime.endpoint = new AWS.Endpoint('https://service.chime.aws.amazon.com');
 
@@ -20,6 +26,8 @@ chime.endpoint = new AWS.Endpoint('https://service.chime.aws.amazon.com');
 const meetingsTableName = process.env.MEETINGS_TABLE_NAME;
 const logGroupName = process.env.BROWSER_LOG_GROUP_NAME;
 const sqsQueueArn = process.env.SQS_QUEUE_ARN;
+const task_definition = process.env.TASK_DEFINITION;
+const ecs_cluster = process.env.ECS_CLUSTER;
 const useSqsInsteadOfEventBridge = process.env.USE_EVENT_BRIDGE === 'false';
 
 // === Handlers ===
@@ -32,7 +40,7 @@ exports.index = async (event, context, callback) => {
 exports.indexV2 = async (event, context, callback) => {
   // Return the contents of the index V2 page
   return response(200, 'text/html', fs.readFileSync('./indexV2.html', {encoding: 'utf8'}));
-};
+}; 
 
 exports.join = async(event, context) => {
   const query = event.queryStringParameters;
@@ -87,6 +95,58 @@ exports.join = async(event, context) => {
       Attendee: attendee,
     },
   }, null, 2));
+};
+
+exports.broadcast = async (event, context) => {
+  // Fetch the meeting by title
+  const meeting = await getMeeting(event.queryStringParameters.title);
+  const meeting_id = meeting.Meeting.MeetingId; 
+
+  // Create the channel
+  var params = {
+    latencyMode: NORMAL,
+    name: 'event.queryStringParameters.title',
+    tags: {
+      'meeting_id': meeting.Meeting.MeetingId
+    },
+    type: STANDARD
+  };
+  ivs.createChannel(params, function(err, data) {
+    if (err) console.log(err, err.stack); // an error occurred
+    else {
+      console.log(data);           // successful response
+
+      const url = data.channel.playbackUrl;
+    }
+  });
+
+  // Start the fargate task
+  var params = {
+    taskDefinition: task_definition, 
+    cluster: ecs_cluster,
+    overrides: {
+      containerOverrides: [
+        {
+          environment: [
+            {
+              name: 'MEETING_URL',
+              value: "https://chime.aws/" + meeting_id
+            },
+            {
+              name: 'RTMP_URL',
+              value: url
+            }
+          ]
+        }
+      ]
+    }
+  };
+  ecs.startTask(params, function(err, data) {
+    if (err) console.log(err, err.stack); // an error occurred
+    else     console.log(data);           // successful response
+  });
+
+  return response(200, 'application/json', JSON.stringify({}));
 };
 
 exports.end = async (event, context) => {

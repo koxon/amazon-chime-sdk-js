@@ -129,6 +129,7 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     'button-speaker': true,
     'button-screen-share': false,
     'button-screen-view': false,
+    'button-broadcast': false,
     'button-pause-screen-share': false,
   };
 
@@ -461,6 +462,49 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
             .finally(() => this.hideTile(17));
         }
         this.layoutVideoTiles();
+      });
+    });
+
+    const buttonStartBroadcast = document.getElementById('button-broadcast');
+    buttonScreenView.addEventListener('click', _e => {
+      new AsyncScheduler().start(async () => {
+        if (this.toggleButton('button-broadcast')) {
+            new AsyncScheduler().start(
+            async (): Promise<void> => {
+
+              element = document.getElementById('button-broadcast')
+
+              try {
+                const region = this.region || 'us-east-1';
+                const response = await fetch(
+                  `${DemoMeetingApp.BASE_URL}broadcast?title=${encodeURIComponent(this.meeting)}&name=${encodeURIComponent(DemoMeetingApp.DID)}&region=${encodeURIComponent(region)}`,
+                  {
+                    method: 'POST',
+                  }
+                );
+                const json = await response.json();
+
+                element.classList.add('btn-success');
+                (element.firstElementChild as SVGElement).classList.add('svg-active');
+
+              } catch (error) {
+
+                element.classList.remove('btn-success');
+                (element.firstElementChild as SVGElement).classList.remove('svg-active');
+
+                (document.getElementById('failed-broadcast-error') as HTMLDivElement).innerText =
+                  error.message;
+                return;
+              }
+            }
+          );
+        } else {
+          this.meetingSession.screenShareView.stop()
+            .catch(error => {
+              this.log(error);
+            })
+            .finally();
+        }
       });
     });
 

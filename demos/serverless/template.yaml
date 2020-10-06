@@ -7,6 +7,14 @@ Parameters:
     Default: false
     Type: String
     AllowedValues: [true, false]
+  TaskDefinition:
+    Description: The Task definition to execute
+    Default: false
+    Type: String
+  EcsCluster:
+    Description: ECS cluster to run the task on
+    Default: false
+    Type: String
 Conditions:
   ShouldUseEventBridge: !Equals [true, !Ref UseEventBridge]
 Globals:
@@ -19,6 +27,8 @@ Globals:
         MEETINGS_TABLE_NAME: !Ref Meetings
         SQS_QUEUE_ARN: !GetAtt MeetingNotificationsQueue.Arn
         BROWSER_LOG_GROUP_NAME: !Ref ChimeBrowserLogs
+        TASK_DEFINITION: !Ref TaskDefinition
+        ECS_CLUSTER: !Ref EcsCluster
 Resources:
   ChimeMeetingsAccessPolicy:
     Type: AWS::IAM::Policy

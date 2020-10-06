@@ -8,6 +8,8 @@ let bucket = ``;
 let stack = ``;
 let app = `meeting`;
 let useEventBridge = false;
+let ecs_cluster = null;
+let task_definition = null;
 
 const packages = [
   // Use latest AWS SDK instead of default version provided by Lambda runtime
@@ -16,11 +18,13 @@ const packages = [
 ];
 
 function usage() {
-  console.log(`Usage: deploy.sh [-r region] [-b bucket] [-s stack] [-a application] [-e]`);
+  console.log(`Usage: deploy.sh -c cluster -t task_definition [-r region] [-b bucket] [-s stack] [-a application] [-e]`);
   console.log(`  -r, --region       Target region, default '${region}'`);
   console.log(`  -b, --s3-bucket    S3 bucket for deployment, required`);
   console.log(`  -s, --stack-name   CloudFormation stack name, required`);
   console.log(`  -a, --application  Browser application to deploy, default '${app}'`);
+  console.log(`  -c, --ecs_cluster   The ECS cluster to run the task on, required`);
+  console.log(`  -t, --task_definition  The ECS task definition to run for broadcasting, required`);
   console.log(`  -e, --event-bridge Enable EventBridge integration, default is no integration`);
   console.log(`  -h, --help         Show help and exit`);
 }
@@ -70,6 +74,12 @@ function parseArgs() {
         break;
       case '-e': case '--event-bridge':
         useEventBridge = true;
+        break;      
+      case '-c': case '--ecs_cluster':
+        ecs_cluster = getArgOrExit(++i, args);
+        break;      
+      case '-t': case '--task_definition':
+        task_definition = getArgOrExit(++i, args);
         break;
       default:
         console.log(`Invalid argument ${args[i]}`);
@@ -157,7 +167,7 @@ spawnOrFail('sam', ['package', '--s3-bucket', `${bucket}`,
                     '--region',  `${region}`]);
 console.log('Deploying serverless application');
 spawnOrFail('sam', ['deploy', '--template-file', './build/packaged.yaml', '--stack-name', `${stack}`,
-                    '--parameter-overrides', `UseEventBridge=${useEventBridge}`,
+                    '--parameter-overrides', `UseEventBridge=${useEventBridge} TaskDefinition=${task_definition} EcsCluster=${ecs_cluster}`,
                     '--capabilities', 'CAPABILITY_IAM', '--region', `${region}`]);
 console.log("Amazon Chime SDK Meeting Demo URL: ");
 const output=spawnOrFail('aws', ['cloudformation', 'describe-stacks', '--stack-name', `${stack}`,
