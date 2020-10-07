@@ -1,7 +1,7 @@
 // Copyright 2019-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import '../../style.scss';
+import './styleV2.scss';
 import 'bootstrap';
 
 import {
@@ -466,13 +466,13 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
     });
 
     const buttonStartBroadcast = document.getElementById('button-broadcast');
-    buttonScreenView.addEventListener('click', _e => {
+    buttonStartBroadcast.addEventListener('click', _e => {
       new AsyncScheduler().start(async () => {
         if (this.toggleButton('button-broadcast')) {
             new AsyncScheduler().start(
             async (): Promise<void> => {
 
-              element = document.getElementById('button-broadcast')
+              const element = document.getElementById('button-broadcast')
 
               try {
                 const region = this.region || 'us-east-1';
@@ -482,7 +482,9 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver 
                     method: 'POST',
                   }
                 );
+
                 const json = await response.json();
+                console.log(json);
 
                 element.classList.add('btn-success');
                 (element.firstElementChild as SVGElement).classList.add('svg-active');
