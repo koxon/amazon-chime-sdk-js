@@ -14,12 +14,13 @@ import DefaultVideoTile from '../videotile/DefaultVideoTile';
 import Device from './Device';
 import DevicePermission from './DevicePermission';
 import DeviceSelection from './DeviceSelection';
+import VideoQualitySettings from './VideoQualitySettings';
 
 export default class DefaultDeviceController implements DeviceControllerBasedMediaStreamBroker {
   private static permissionGrantedOriginDetectionThresholdMs = 1000;
   private static permissionDeniedOriginDetectionThresholdMs = 500;
-  private static defaultVideoWidth = 1280;
-  private static defaultVideoHeight = 720;
+  private static defaultVideoWidth = 960;
+  private static defaultVideoHeight = 540;
   private static defaultVideoFrameRate = 15;
   private static defaultVideoMaxBandwidthKbps = 1400;
   private static defaultSampleRate = 48000;
@@ -38,10 +39,7 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
   private audioInputDestinationNode: MediaStreamAudioDestinationNode | null = null;
   private audioInputSourceNode: MediaStreamAudioSourceNode | null = null;
 
-  private videoWidth: number = DefaultDeviceController.defaultVideoWidth;
-  private videoHeight: number = DefaultDeviceController.defaultVideoHeight;
-  private videoFrameRate: number = DefaultDeviceController.defaultVideoFrameRate;
-  private videoMaxBandwidthKbps: number = DefaultDeviceController.defaultVideoMaxBandwidthKbps;
+  private videoInputQualitySettings: VideoQualitySettings = null;
 
   private useWebAudio: boolean = false;
 
@@ -51,14 +49,21 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
   private browserBehavior: DefaultBrowserBehavior = new DefaultBrowserBehavior();
 
   constructor(private logger: Logger) {
-    let dimension = this.browserBehavior.requiresResolutionAlignment(
-      this.videoWidth,
-      this.videoHeight
+    this.videoInputQualitySettings = new VideoQualitySettings(
+      DefaultDeviceController.defaultVideoWidth,
+      DefaultDeviceController.defaultVideoHeight,
+      DefaultDeviceController.defaultVideoFrameRate,
+      DefaultDeviceController.defaultVideoMaxBandwidthKbps
     );
-    this.videoWidth = dimension[0];
-    this.videoHeight = dimension[1];
+
+    const dimension = this.browserBehavior.requiresResolutionAlignment(
+      this.videoInputQualitySettings.videoWidth,
+      this.videoInputQualitySettings.videoHeight
+    );
+    this.videoInputQualitySettings.videoWidth = dimension[0];
+    this.videoInputQualitySettings.videoHeight = dimension[1];
     this.logger.info(
-      `DefaultDeviceController video dimension ${this.videoWidth} x ${this.videoHeight}`
+      `DefaultDeviceController video dimension ${this.videoInputQualitySettings.videoWidth} x ${this.videoInputQualitySettings.videoHeight}`
     );
 
     try {
@@ -201,12 +206,18 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
     frameRate: number,
     maxBandwidthKbps: number
   ): void {
-    let dimension = this.browserBehavior.requiresResolutionAlignment(width, height);
-    this.videoWidth = dimension[0];
-    this.videoHeight = dimension[1];
-    this.videoFrameRate = frameRate;
-    this.videoMaxBandwidthKbps = maxBandwidthKbps;
+    const dimension = this.browserBehavior.requiresResolutionAlignment(width, height);
+    this.videoInputQualitySettings = new VideoQualitySettings(
+      dimension[0],
+      dimension[1],
+      frameRate,
+      maxBandwidthKbps
+    );
     this.updateMaxBandwidthKbps();
+  }
+
+  getVideoInputQualitySettings(): VideoQualitySettings | null {
+    return this.videoInputQualitySettings;
   }
 
   async acquireAudioInputStream(): Promise<MediaStream> {
@@ -273,15 +284,15 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
     this.bindAudioOutput();
   }
 
-  static createEmptyAudioDevice(): Device {
+  static createEmptyAudioDevice(): MediaStream {
     return DefaultDeviceController.synthesizeAudioDevice(0);
   }
 
-  static createEmptyVideoDevice(): Device {
+  static createEmptyVideoDevice(): MediaStream | null {
     return DefaultDeviceController.synthesizeVideoDevice('black');
   }
 
-  static synthesizeAudioDevice(toneHz: number): Device {
+  static synthesizeAudioDevice(toneHz: number): MediaStream {
     const audioContext = DefaultDeviceController.getAudioContext();
     const outputNode = audioContext.createMediaStreamDestination();
     if (!toneHz) {
@@ -327,7 +338,7 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
     return outputNode.stream;
   }
 
-  static synthesizeVideoDevice(colorOrPattern: string): Device {
+  static synthesizeVideoDevice(colorOrPattern: string): MediaStream | null {
     const canvas = document.createElement('canvas') as HTMLCanvasElement;
     canvas.width = 480;
     canvas.height = (canvas.width / 16) * 9;
@@ -396,7 +407,9 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
 
   private updateMaxBandwidthKbps(): void {
     if (this.boundAudioVideoController) {
-      this.boundAudioVideoController.setVideoMaxBandwidthKbps(this.videoMaxBandwidthKbps);
+      this.boundAudioVideoController.setVideoMaxBandwidthKbps(
+        this.videoInputQualitySettings.videoMaxBandwidthKbps
+      );
     }
   }
 
@@ -580,11 +593,44 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
     return null;
   }
 
+  private restartLocalVideoAfterSelection(oldStream: MediaStream, fromAcquire: boolean): void {
+    if (
+      !fromAcquire &&
+      this.boundAudioVideoController &&
+      this.boundAudioVideoController.videoTileController.hasStartedLocalVideoTile()
+    ) {
+      this.logger.info('restarting local video to switch to new device');
+      this.boundAudioVideoController.restartLocalVideo(() => {
+        // TODO: implement MediaStreamDestroyer
+        // tracks of oldStream should be stopped when video tile is disconnected from MediaStream
+        // otherwise, camera is still being accessed and we need to stop it here.
+        if (oldStream && oldStream.active) {
+          this.logger.warn('previous media stream is not stopped during restart video');
+          this.releaseMediaStream(oldStream);
+        }
+      });
+    } else {
+      this.releaseMediaStream(oldStream);
+    }
+  }
+
   private async chooseInputDevice(
     kind: string,
     device: Device,
     fromAcquire: boolean
   ): Promise<DevicePermission> {
+    function grantedForDuration(start: number, end: number): DevicePermission {
+      return end - start < DefaultDeviceController.permissionGrantedOriginDetectionThresholdMs
+        ? DevicePermission.PermissionGrantedByBrowser
+        : DevicePermission.PermissionGrantedByUser;
+    }
+
+    function deniedForDuration(start: number, end: number): DevicePermission {
+      return end - start < DefaultDeviceController.permissionDeniedOriginDetectionThresholdMs
+        ? DevicePermission.PermissionDeniedByBrowser
+        : DevicePermission.PermissionDeniedByUser;
+    }
+
     this.inputDeviceCount += 1;
     const callCount = this.inputDeviceCount;
 
@@ -659,11 +705,9 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
           error.name
         }: ${error.message}`
       );
-      return Date.now() - startTimeMs <
-        DefaultDeviceController.permissionDeniedOriginDetectionThresholdMs
-        ? DevicePermission.PermissionDeniedByBrowser
-        : DevicePermission.PermissionDeniedByUser;
+      return deniedForDuration(startTimeMs, Date.now());
     }
+
     this.logger.info(`got ${kind} device for constraints ${JSON.stringify(proposedConstraints)}`);
 
     const oldStream: MediaStream | null = this.activeDevices[kind]
@@ -672,24 +716,7 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
     this.activeDevices[kind] = newDevice;
 
     if (kind === 'video') {
-      if (
-        !fromAcquire &&
-        this.boundAudioVideoController &&
-        this.boundAudioVideoController.videoTileController.hasStartedLocalVideoTile()
-      ) {
-        this.logger.info('restarting local video to switch to new device');
-        this.boundAudioVideoController.restartLocalVideo(() => {
-          // TODO: implement MediaStreamDestroyer
-          // tracks of oldStream should be stopped when video tile is disconnected from MediaStream
-          // otherwise, camera is still being accessed and we need to stop it here.
-          if (oldStream && oldStream.active) {
-            this.logger.warn('previous media stream is not stopped during restart video');
-            this.releaseMediaStream(oldStream);
-          }
-        });
-      } else {
-        this.releaseMediaStream(oldStream);
-      }
+      this.restartLocalVideoAfterSelection(oldStream, fromAcquire);
     } else {
       this.releaseMediaStream(oldStream);
 
@@ -705,10 +732,7 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
         this.logger.info('no audio-video controller is bound to the device controller');
       }
     }
-    return Date.now() - startTimeMs <
-      DefaultDeviceController.permissionGrantedOriginDetectionThresholdMs
-      ? DevicePermission.PermissionGrantedByBrowser
-      : DevicePermission.PermissionGrantedByUser;
+    return grantedForDuration(startTimeMs, Date.now());
   }
 
   private async bindAudioOutput(): Promise<void> {
@@ -745,9 +769,15 @@ export default class DefaultDeviceController implements DeviceControllerBasedMed
       trackConstraints = device;
     }
     if (kind === 'video') {
-      trackConstraints.width = trackConstraints.width || { ideal: this.videoWidth };
-      trackConstraints.height = trackConstraints.height || { ideal: this.videoHeight };
-      trackConstraints.frameRate = trackConstraints.frameRate || { ideal: this.videoFrameRate };
+      trackConstraints.width = trackConstraints.width || {
+        ideal: this.videoInputQualitySettings.videoWidth,
+      };
+      trackConstraints.height = trackConstraints.height || {
+        ideal: this.videoInputQualitySettings.videoHeight,
+      };
+      trackConstraints.frameRate = trackConstraints.frameRate || {
+        ideal: this.videoInputQualitySettings.videoFrameRate,
+      };
       // TODO: try to replace hard-code value related to videos into quality-level presets
       // The following configs relaxes CPU overuse detection threshold to offer better encoding quality
       // @ts-ignore

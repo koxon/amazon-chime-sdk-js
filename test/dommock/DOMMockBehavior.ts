@@ -1,8 +1,14 @@
 // Copyright 2019-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
+import DisplayMediaState from './DisplayMediaState';
+import UserMediaState from './UserMediaState';
+
 export default class DOMMockBehavior {
   asyncWaitMs: number = 10;
+  getDisplayMediaResult: DisplayMediaState = DisplayMediaState.Success;
+  triggeredEndedEventForStopStreamTrack: boolean = true;
+  getUserMediaResult: UserMediaState = UserMediaState.Success;
   getUserMediaSucceeds: boolean = true;
   getUserMediaAudioLabel: string = 'Default';
   webSocketOpenSucceeds: boolean = true;
@@ -10,8 +16,10 @@ export default class DOMMockBehavior {
   webSocketCloseSucceeds: boolean = true;
   webSocketSendEcho: boolean = true;
   iceConnectionStates: string[] = ['completed'];
+
+  // eslint-disable-next-line @typescript-eslint/ban-types
   FakeTURNCredentialsBody: Promise<object> = new Promise((resolve, _reject) => {
-    let obj: object = new Object({
+    const obj = new Object({
       username: 'fakeUsername',
       password: 'fakeTURNCredentials',
       ttl: Infinity,
@@ -65,5 +73,6 @@ export default class DOMMockBehavior {
   createElementCaptureStream: MediaStream = undefined;
   audioContextDefaultSampleRate = 48000;
   audioContextCreateBufferSucceeds = true;
+  createMediaStreamDestinationSuccess: boolean = true;
   isUnifiedPlanSupported: boolean = true;
 }

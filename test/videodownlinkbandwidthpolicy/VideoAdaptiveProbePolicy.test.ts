@@ -95,6 +95,18 @@ describe('VideoAdaptiveProbePolicy', () => {
     });
   });
 
+  describe('reset', () => {
+    it('can be reset', () => {
+      const resub = policy.wantsResubscribe();
+      expect(resub).to.equal(true);
+      let received = policy.chooseSubscriptions();
+      expect(received.array()).to.deep.equal([1, 3, 11, 22]);
+      policy.reset();
+      received = policy.chooseSubscriptions();
+      expect(received.array()).to.deep.equal([]);
+    });
+  });
+
   describe('updateIndex', () => {
     it('can update VideoStreamIndex', () => {
       videoStreamIndex = new SimulcastVideoStreamIndex(logger);
@@ -106,7 +118,7 @@ describe('VideoAdaptiveProbePolicy', () => {
 
   describe('updateMetric', () => {
     it('can be no-op if there are no streams available to subscribe', () => {
-      let resub = policy.wantsResubscribe();
+      const resub = policy.wantsResubscribe();
       expect(resub).to.equal(true);
       videoStreamIndex.integrateIndexFrame(new SdkIndexFrame());
       policy.updateIndex(videoStreamIndex);
@@ -188,7 +200,7 @@ describe('VideoAdaptiveProbePolicy', () => {
     it('will keep updating during start-up period', done => {
       let resub = policy.wantsResubscribe();
       expect(resub).to.equal(true);
-      let received = policy.chooseSubscriptions();
+      const received = policy.chooseSubscriptions();
       expect(received.array()).to.deep.equal([1, 3, 11, 22]);
 
       const metricReport = new DefaultClientMetricReport(logger);
@@ -216,7 +228,7 @@ describe('VideoAdaptiveProbePolicy', () => {
     it('will not change resubscription if start-up period elapses and available streams are the same', () => {
       let resub = policy.wantsResubscribe();
       expect(resub).to.equal(true);
-      let received = policy.chooseSubscriptions();
+      const received = policy.chooseSubscriptions();
       expect(received.array().length).to.equal(4);
       // expect(received.array()).to.deep.equal([0, 2]);
       // @ts-ignore

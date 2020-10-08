@@ -3,6 +3,7 @@ const safari = require('../node_modules/selenium-webdriver/safari');
 const axios = require('axios');
 const Base64 = require('js-base64').Base64;
 const {AppPage} = require('../pages/AppPage');
+const {MeetingReadinessCheckerPage} = require('../pages/MeetingReadinessCheckerPage');
 
 const getPlatformName = capabilities => {
   switch (capabilities.platform) {
@@ -23,7 +24,6 @@ const getPlatformName = capabilities => {
       return '';
   }
 };
-
 
 const getFirefoxCapabilities = (capabilities) => {
   return {
@@ -72,7 +72,6 @@ const getSafariCapabilities = capabilities => {
   return cap
 };
 
-
 const getChromeCapabilities = capabilities => {
   let cap = Capabilities.chrome();
   var prefs = new logging.Preferences();
@@ -98,9 +97,7 @@ const getSauceLabsConfig = (capabilities) => {
     seleniumVersion: '3.141.59',
     tunnelIdentifier: process.env.TRAVIS_JOB_NUMBER,
     ...(capabilities.platform.toUpperCase() !== 'LINUX' && {
-      extendedDebugging: true,
-      capturePerformance: true,
-      crmuxdriverVersion: 'beta'
+      extendedDebugging: true
     })
   }
 };
@@ -159,7 +156,7 @@ const isMobileDomain = (domain) => {
 }
 
 class SaucelabsSession {
-  static async createSession(capabilities) {
+  static async createSession(capabilities, appName) {
     let cap = {};
     if (capabilities.browserName === 'chrome') {
       if (capabilities.platform === 'ANDROID') {
@@ -182,12 +179,13 @@ class SaucelabsSession {
       .withCapabilities(cap)
       .forBrowser(capabilities.browserName)
       .build();
-    return new SaucelabsSession(driver, domain);
+    return new SaucelabsSession(driver, domain, appName);
   }
 
-  constructor(inDriver, domain) {
+  constructor(inDriver, domain, appName) {
     this.driver = inDriver;
     this.domain = domain;
+    this.appName = appName;
   }
 
   async init() {
@@ -230,7 +228,9 @@ class SaucelabsSession {
 
   getAppPage() {
     if (this.page === undefined) {
-      this.page = new AppPage(this.driver, this.logger);
+      this.page = this.appName === 'meeting'
+        ? new AppPage(this.driver, this.logger)
+        : new MeetingReadinessCheckerPage(this.driver, this.logger);
     }
     return this.page;
   }

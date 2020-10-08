@@ -48,7 +48,8 @@ And review the following guides:
 - [Recording Demo](https://github.com/aws-samples/amazon-chime-sdk-recording-demo) - Recording the meeting's audio, video and screen share in high definition
 - [Virtual Classroom](https://github.com/aws-samples/amazon-chime-sdk-classroom-demo) - An online classroom built with Electron and React
 - [Live Events](https://github.com/aws-samples/amazon-chime-live-events) - Interactive live events solution
-- [PSTN Integration](https://github.com/aws-samples/amazon-chime-voiceconnector-transcription) - Integrating PSTN callers with Amazon Chime SDK meetings
+- [PSTN Integration](https://github.com/aws-samples/amazon-chime-sdk-pstn-integration) - Integrating PSTN callers with Amazon Chime SDK meetings
+- [React Components and Demo](https://github.com/aws/amazon-chime-sdk-component-library-react) - A component library for building meetings
 
 ## Installation
 
@@ -132,7 +133,7 @@ npm run test
 After running `npm run test` the first time, you can use `npm run test:fast` to
 speed up the test suite.
 
-To view code coverage results open `build/coverage/index.html` in your browser
+To view code coverage results open `coverage/index.html` in your browser
 after running `npm run test`.
 
 ## Generating the documentation
@@ -347,7 +348,50 @@ meetingSession.audioVideo.realtimeSubscribeToVolumeIndicator(
 );
 ```
 
-**Use case 11.** Detect the most active speaker. For example, you can enlarge the active speaker's video element if available.
+**Use case 11.** Subscribe to mute or signal strength changes of a specific attendee. You can use this to build UI for only mute or only signal strength changes.
+
+```js
+// This is your attendee ID. You can also subscribe to another attendee's ID.
+// See the "Attendees" section for an example on how to retrieve other attendee IDs
+// in a session.
+const presentAttendeeId = meetingSession.configuration.credentials.attendeeId;
+
+// To track mute changes
+meetingSession.audioVideo.realtimeSubscribeToVolumeIndicator(
+  presentAttendeeId,
+  (attendeeId, volume, muted, signalStrength) => {
+    // A null value for volume, muted and signalStrength field means that it has not changed.
+    if (muted === null) {
+      // muted state has not changed, ignore volume and signalStrength changes
+      return;
+    }
+
+    // mute state changed
+    console.log(`${attendeeId}'s mute state changed: `, {
+      muted, // a boolean
+    });
+  }
+);
+
+// To track signal strength changes
+meetingSession.audioVideo.realtimeSubscribeToVolumeIndicator(
+  presentAttendeeId,
+  (attendeeId, volume, muted, signalStrength) => {
+    // A null value for volume, muted and signalStrength field means that it has not changed.
+    if (signalStrength === null) {
+      // signalStrength has not changed, ignore volume and muted changes
+      return;
+    }
+
+    // signal strength changed
+    console.log(`${attendeeId}'s signal strength changed: `, {
+      signalStrength // 0 (no signal), 0.5 (weak), 1 (strong)
+    });
+  }
+);
+```
+
+**Use case 12.** Detect the most active speaker. For example, you can enlarge the active speaker's video element if available.
 
 ```js
 import { DefaultActiveSpeakerPolicy } from 'amazon-chime-sdk-js';
@@ -369,9 +413,10 @@ meetingSession.audioVideo.subscribeToActiveSpeakerDetector(
 > Note: In Chime SDK terms, a video tile is an object containing an attendee ID,
 a video stream, etc. To view a video in your application, you must bind a tile to a `<video>` element.
 > - Make sure you bind a tile to the same video element until the tile is removed.
-> - A tile is created with a new tile ID when the same attendee restarts the video.
+> - A local video tile can be identified using `localTile` property. 
+> - A tile is created with a new tile ID when the same remote attendee restarts the video.
 
-**Use case 12.** Start sharing your video. The local video element is flipped horizontally (mirrored mode).
+**Use case 13.** Start sharing your video. The local video element is flipped horizontally (mirrored mode).
 
 ```js
 const videoElement = /* HTMLVideoElement object e.g. document.getElementById('video-element-id') */;
@@ -400,7 +445,7 @@ meetingSession.audioVideo.addObserver(observer);
 meetingSession.audioVideo.startLocalVideoTile();
 ```
 
-**Use case 13.** Stop sharing your video.
+**Use case 14.** Stop sharing your video.
 
 ```js
 const videoElement = /* HTMLVideoElement object e.g. document.getElementById('video-element-id') */;
@@ -434,7 +479,7 @@ meetingSession.audioVideo.stopLocalVideoTile();
 meetingSession.audioVideo.removeLocalVideoTile();
 ```
 
-**Use case 14.** View one attendee video, e.g. in a 1-on-1 session.
+**Use case 15.** View one attendee video, e.g. in a 1-on-1 session.
 
 ```js
 const videoElement = /* HTMLVideoElement object e.g. document.getElementById('video-element-id') */;
@@ -454,7 +499,7 @@ const observer = {
 meetingSession.audioVideo.addObserver(observer);
 ```
 
-**Use case 15.** View up to 16 attendee videos. Assume that you have 16 video elements in your application,
+**Use case 16.** View up to 16 attendee videos. Assume that you have 16 video elements in your application,
 and that an empty cell means it's taken.
 
 ```js
@@ -533,7 +578,7 @@ the content attendee (attendee-id#content) joins the session and shares content 
 > For example, your attendee ID is "my-id". When you call `meetingSession.audioVideo.startContentShare`,
 the content attendee "my-id#content" will join the session and share your content.
 
-**Use case 16.** Start sharing your screen.
+**Use case 17.** Start sharing your screen.
 
 ```js
 import { DefaultModality } from 'amazon-chime-sdk-js';
@@ -576,12 +621,12 @@ const contentShareStream = await meetingSession.audioVideo.startContentShareFrom
 
 If you want to display the content share stream for the sharer, you can bind the returned content share stream to a
  video element using `connectVideoStreamToVideoElement` from DefaultVideoTile.
- 
+
 ```js
 DefaultVideoTile.connectVideoStreamToVideoElement(contentShareStream, videoElement, false);
 ```
 
-**Use case 17.** Start sharing your screen in an environment that does not support a screen picker dialog. e.g. Electron
+**Use case 18.** Start sharing your screen in an environment that does not support a screen picker dialog. e.g. Electron
 
 ```js
 const sourceId = /* Window or screen ID e.g. the ID of a DesktopCapturerSource object in Electron */;
@@ -589,7 +634,7 @@ const sourceId = /* Window or screen ID e.g. the ID of a DesktopCapturerSource o
 await meetingSession.audioVideo.startContentShareFromScreenCapture(sourceId);
 ```
 
-**Use case 18.** Start streaming your video file from an `<input>` element of type `file`.
+**Use case 19.** Start streaming your video file from an `<input>` element of type `file`.
 
 ```js
 const videoElement = /* HTMLVideoElement object e.g. document.getElementById('video-element-id') */;
@@ -607,7 +652,7 @@ inputElement.addEventListener('change', async () => {
 });
 ```
 
-**Use case 19.** Stop sharing your screen or content.
+**Use case 20.** Stop sharing your screen or content.
 
 ```js
 const observer = {
@@ -621,7 +666,7 @@ meetingSession.audioVideo.addContentShareObserver(observer);
 await meetingSession.audioVideo.stopContentShare();
 ```
 
-**Use case 20.** View up to 2 attendee content or screens. Chime SDK allows 2 simultaneous content shares per meeting.
+**Use case 21.** View up to 2 attendee content or screens. Chime SDK allows 2 simultaneous content shares per meeting.
 
 ```js
 import { DefaultModality } from 'amazon-chime-sdk-js';
@@ -673,7 +718,7 @@ meetingSession.audioVideo.addObserver(observer);
 
 ### Attendees
 
-**Use case 21.** Subscribe to attendee presence changes. When an attendee joins or leaves a session,
+**Use case 22.** Subscribe to attendee presence changes. When an attendee joins or leaves a session,
 the callback receives `presentAttendeeId` and `present` (a boolean).
 
 ```js
@@ -690,7 +735,7 @@ const callback = (presentAttendeeId, present) => {
 meetingSession.audioVideo.realtimeSubscribeToAttendeeIdPresence(callback);
 ```
 
-**Use case 22.** Create a simple roster by subscribing to attendee presence and volume changes.
+**Use case 23.** Create a simple roster by subscribing to attendee presence and volume changes.
 
 ```js
 import { DefaultModality } from 'amazon-chime-sdk-js';
@@ -738,7 +783,7 @@ meetingSession.audioVideo.realtimeSubscribeToAttendeeIdPresence(
 
 ### Monitoring and alerts
 
-**Use case 23.** Add an observer to receive video metrics. See `AudioVideoObserver` for more available metrics,
+**Use case 24.** Add an observer to receive video metrics. See `AudioVideoObserver` for more available metrics,
 such as WebRTC statistics processed by Chime SDK.
 
 ```js
@@ -757,7 +802,7 @@ const observer = {
 meetingSession.audioVideo.addObserver(observer);
 ```
 
-**Use case 24.** Add an observer to receive alerts. You can use these alerts to notify users of connection problems.
+**Use case 25.** Add an observer to receive alerts. You can use these alerts to notify users of connection problems.
 
 ```js
 const observer = {
@@ -788,7 +833,7 @@ meetingSession.audioVideo.addObserver(observer);
 
 ### Stopping a session
 
-**Use case 25.** Leave a session.
+**Use case 26.** Leave a session.
 
 ```js
 import { MeetingSessionStatusCode } from 'amazon-chime-sdk-js';
@@ -813,7 +858,7 @@ meetingSession.audioVideo.addObserver(observer);
 meetingSession.audioVideo.stop();
 ```
 
-**Use case 26.** Add an observer to get notified when a session has ended.
+**Use case 27.** Add an observer to get notified when a session has ended.
 
 ```js
 import { MeetingSessionStatusCode } from 'amazon-chime-sdk-js';
@@ -838,6 +883,79 @@ const observer = {
 };
 
 meetingSession.audioVideo.addObserver(observer);
+```
+
+### Meeting readiness checker
+
+**Use case 28.** Initialize the meeting readiness checker.
+
+```js
+import { DefaultMeetingReadinessChecker } from 'amazon-chime-sdk-js';
+
+// In the usage examples below, you will use this meetingReadinessChecker object.
+const meetingReadinessChecker = new DefaultMeetingReadinessChecker(logger, meetingSession);
+```
+
+**Use case 29.** Use the meeting readiness checker to perform local checks.
+
+```js
+import { CheckAudioInputFeedback } from 'amazon-chime-sdk-js';
+
+const audioInputDeviceInfo = /* An array item from meetingSession.audioVideo.listAudioInputDevices */;
+const audioInputFeedback = await meetingReadinessChecker.checkAudioInput(audioInputDeviceInfo.deviceId);
+
+switch (audioInputFeedback) {
+  case CheckAudioInputFeedback.Succeeded:
+    console.log('Succeeded');
+    break;
+  case CheckAudioInputFeedback.Failed:
+    console.log('Failed');
+    break;
+  case CheckAudioInputFeedback.PermissionDenied:
+    console.log('Permission denied');
+    break;
+}
+```
+
+**Use case 30.** Use the meeting readiness checker to perform end-to-end checks, e.g. audio, video, and content share.
+
+```js
+import {
+  CheckAudioConnectivityFeedback,
+  CheckContentShareConnectivityFeedback,
+  CheckVideoConnectivityFeedback
+} from 'amazon-chime-sdk-js';
+
+// Tests audio connection
+const audioDeviceInfo = /* An array item from meetingSession.audioVideo.listAudioInputDevices */;
+const audioFeedback = await meetingReadinessChecker.checkAudioConnectivity(audioDeviceInfo.deviceId);
+console.log(`Feedback result: ${CheckAudioConnectivityFeedback[audioFeedback]}`);
+
+// Test video connection
+const videoInputInfo = /* An array item from meetingSession.audioVideo.listVideoInputDevices */;
+const videoFeedback = await meetingReadinessChecker.checkVideoConnectivity(videoInputInfo.deviceId);
+console.log(`Feedback result: ${CheckVideoConnectivityFeedback[videoFeedback]}`);
+
+// Tests content share connectivity
+const contentShareFeedback = await meetingReadinessChecker.checkContentShareConnectivity();
+console.log(`Feedback result: ${CheckContentShareConnectivityFeedback[contentShareFeedback]}`);
+```
+
+**Use case 31.** Use the meeting readiness checker to perform network checks, e.g. TCP and UDP.
+
+```js
+import {
+  CheckNetworkUDPConnectivityFeedback,
+  CheckNetworkTCPConnectivityFeedback
+} from 'amazon-chime-sdk-js';
+
+// Tests for UDP network connectivity
+const networkUDPFeedback = await meetingReadinessChecker.checkNetworkUDPConnectivity();
+console.log(`Feedback result: ${CheckNetworkUDPConnectivityFeedback[networkUDPFeedback]}`);
+
+// Tests for TCP network connectivity
+const networkUDPFeedback = await meetingReadinessChecker.checkNetworkTCPConnectivity();
+console.log(`Feedback result: ${CheckNetworkTCPConnectivityFeedback[networkUDPFeedback]}`);
 ```
 
 Copyright 2019-2020 Amazon.com, Inc. or its affiliates. All Rights Reserved.

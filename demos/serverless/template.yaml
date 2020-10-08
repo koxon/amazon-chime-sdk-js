@@ -15,6 +15,10 @@ Parameters:
     Description: ECS cluster to run the task on
     Default: false
     Type: String
+  ChimeEndpoint:
+    Description: The AWS SDK Chime endpoint
+    Default: "https://service.chime.aws.amazon.com"
+    Type: String
 Conditions:
   ShouldUseEventBridge: !Equals [true, !Ref UseEventBridge]
 Globals:
@@ -29,6 +33,7 @@ Globals:
         BROWSER_LOG_GROUP_NAME: !Ref ChimeBrowserLogs
         TASK_DEFINITION: !Ref TaskDefinition
         ECS_CLUSTER: !Ref EcsCluster
+        CHIME_ENDPOINT: !Ref ChimeEndpoint
 Resources:
   ChimeMeetingsAccessPolicy:
     Type: AWS::IAM::Policy
@@ -40,6 +45,8 @@ Resources:
           - Effect: Allow
             Action:
               - 'chime:CreateMeeting'
+              - 'chime:TagMeeting'
+              - 'chime:TagResource'
               - 'chime:DeleteMeeting'
               - 'chime:GetMeeting'
               - 'chime:ListMeetings'
@@ -84,6 +91,7 @@ Resources:
             Resource: '*'
       Roles:
         - Ref: ChimeSdkBrowserLogsLambdaRole
+        - Ref: ChimeSdkBrowserCreateLogStreamLambdaRole
   Meetings:
     Type: AWS::DynamoDB::Table
     Properties:
@@ -235,6 +243,17 @@ Resources:
           Type: Api
           Properties:
             Path: /simpleTiles/logs
+            Method: POST
+  ChimeSdkBrowserCreateLogStreamLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.create_log_stream
+      CodeUri: src/
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /create_log_stream
             Method: POST
   ChimeNotificationsQueuePolicy:
     Type: AWS::SQS::QueuePolicy

@@ -7,15 +7,111 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Add a Travis check to make sure version update
+- Add metrics for Selenium initialization metrics for integration tests
+- Create log stream before logging begins
+- Make AWS SDK for Java camelCased meeting-attendee response compatible with Chime SDK for JavaScript
+- Mark InvalidSequenceTokenExceptions as warning
+- Add an optional parameter to the serverless demo deployment script to specify Chime endpoint, and deploy to a new devo stage that talks to gamma Chime endpoint for canary
+- Add extended debugging for saucelab sessions
+- Add data message throttle limits to documentation
+
+### Changed
+- Update test results to Sauce Labs before emitting CloudWatch metrics for integration tests
+- Mark `AudioInternalServerError` and `SignalingInternalServerError` as non-terminal errors
+- Replace `awesome-typescript-loader` with `ts-loader`
+- Alter the API signature for `Logger.debug` to accept strings, not just functions
+- Update meeting readiness checker demo app with new regions CPT, MXP, BOM and ICN
+- Update meeting readiness checker demo app to create meeting after the checker starts
+
+### Removed
+
+### Fixed
+- Make sure integration test returns FAILED if there is error
+- No video after connection failure
+- Fix video track sometimes being removed and added on simulcast receive stream switch
+
+## [1.19.0] - 2020-09-29
+### Added
+- Add MeetingReadinessCheckerConfiguration to allow custom configuration for meeting readiness checker
+
+### Changed
+- Update Travis config to improve PR build speed
+- Disable configs in saucelab capabilities
+- Use credentials sent via signaling connection JOIN_ACK to improve audio-video startup time.
+- [Demo] Adjust demo css to prevent unecessary scrollbars on windows and stretching in video grid
+- Update dependencies to TypeScript 4, `ts-loader`, and modern linting
+- [Demo] Update dependencies, too.
+- Remove unnecessary startAudioPreview in meeting demo
+- Fix video tile with incorrect bound attendee ID and external User ID
+
+### Removed
+- Revert the "Create log stream before logging begins" commit
+- Revert "Fix unbinding video tile bug" commit
+- Revert "Fix issue with removeLocalVideoTile not removing video tile for remote attendees" commit
+- Remove "./guides/docs.ts" and the composite setting from tsconfig.json
+
+### Fixed
+- Fix Maven installation script
+- Fix SIP integration test
+- Fixed v1 meeting bug related to bootstrap row class
+- Fix meeting readiness checker integration test
+
+## [1.18.0] - 2020-09-22
+### Added
+- Add meeting readiness checker integ tests to travis config
+- Add optional parameter `sourceId` to checkContentShareConnectivity API
+- Add getVideoInputQualitySettings to retrieve the current video settings
+- Add documentation for DefaultActiveSpeakerPolicy constructor
+
+### Changed
+- Use pip to install aws sam cli for deployment script
+- Added meetings tags to serverless demo
+- Update PR template to add question about protocol and API change
+- Add demos/browser package-lock to git, update webpack and jquery versions
+- Update integration-watchlist to include demos/browser with no exception for package.json
+- Change error to warn for logging Cloudwatch errors
+- Update README with use case to handle `realtimeSubscribeToVolumeIndicator` updates efficiently
+- Change error messaging for getUserMedia error
+- Change demo video grid to CSS
+- Update new known issues in FAQs and PTSN sample in README
+
+### Removed
+
+### Fixed
+- Fixed bug related to unbinding a video element
+- Fix tone does not stop when calling MeetingReadinessChecker.checkAudioOutput multiple times
+- Fixed demo css format issue from updating to bootstrap 4.5.1
+- Fix a minor syntax in DefaultSessionStateController
+
+## [1.17.2] - 2020-09-08
+### Added
+
+### Changed
+
+### Removed
+
+### Fixed
+- Change default encode resolution back to 960x540
+
+## [1.17.0] - 2020-09-04
+### Added
 - Add npm login and logout as part of publish script
+- Add Meeting Readiness Checker APIs
 
 ### Changed
 - Change WebRTC semantics to Unified Plan by default for Chromium-based browsers
+- Update video simulcast guide doc
+- Update readme to include link to React components repo
 
 ### Removed
 
 ### Fixed
 - Fixed removeLocalVideoTile so that the video tile is removed correctly for the user and attendees
+- Handle timing issue of receiving index during resubscribe
+- Mitigate Brew Sam installation issue
+- Remove set command in travis awscli installation script
+- Add `--no-fail-on-empty-changeset` flag in deploy script to not fail for empty changeset
 
 ## [1.16.0] - 2020-08-20
 

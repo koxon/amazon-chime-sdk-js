@@ -20,7 +20,7 @@ describe('DefaultVideoStreamIndex', () => {
   let expect: Chai.ExpectStatic;
   let assert: Chai.AssertStatic;
   let index: DefaultVideoStreamIndex;
-  let logger = new NoOpLogger(LogLevel.DEBUG);
+  const logger = new NoOpLogger(LogLevel.DEBUG);
 
   beforeEach(() => {
     expect = chai.expect;
@@ -609,13 +609,8 @@ describe('DefaultVideoStreamIndex', () => {
     it('resolves a track id to an attendee id', () => {
       expect(index.attendeeIdForTrack('4107')).to.equal('');
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
-      expect(index.attendeeIdForTrack('4107')).to.equal('a0ff');
-    });
-
-    it('resolves a track id to an attendee id when index frame and subscribe ack received in swapped order', () => {
-      index.integrateSubscribeAckFrame(subackFrame);
-      index.integrateIndexFrame(indexFrame);
       expect(index.attendeeIdForTrack('4107')).to.equal('a0ff');
     });
 
@@ -631,18 +626,21 @@ describe('DefaultVideoStreamIndex', () => {
 
     it('returns empty string on unmapped track id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.attendeeIdForTrack('85e9')).to.equal('');
     });
 
     it('returns empty string on unmapped stream id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.attendeeIdForTrack('9318')).to.equal('');
     });
 
     it('resolves a track id to an attendee id after updating index frame', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       index.integrateIndexFrame(
         new SdkIndexFrame({
@@ -678,27 +676,154 @@ describe('DefaultVideoStreamIndex', () => {
           ],
         })
       );
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(subackFrame);
       expect(index.attendeeIdForTrack('9318')).to.equal('cd3f2893');
     });
 
-    it('resolves a track id to an attendee id after updating subscribe ack frame', () => {
-      index.integrateIndexFrame(indexFrame);
-      index.integrateSubscribeAckFrame(subackFrame);
-      index.integrateSubscribeAckFrame(
-        new SdkSubscribeAckFrame({
-          tracks: [
-            new SdkTrackMapping({ streamId: 2, trackLabel: 'b18b9db2' }),
-            new SdkTrackMapping({ streamId: 4, trackLabel: '85e9' }),
-            new SdkTrackMapping({ streamId: 9, trackLabel: '9318' }),
+    it('resolves track id to attendee id after index during subscribe', () => {
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [new SdkStreamDescriptor({ streamId: 4, groupId: 1, attendeeId: 'client1' })],
+        })
+      );
+      index.subscribeFrameSent();
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [
+            new SdkStreamDescriptor({ streamId: 2, groupId: 1, attendeeId: 'client1' }),
+            new SdkStreamDescriptor({ streamId: 3, groupId: 1, attendeeId: 'client1' }),
           ],
         })
       );
-      expect(index.attendeeIdForTrack('85e9')).to.equal('a0ff');
-      expect(index.attendeeIdForTrack('b18b9db2')).to.equal('4d82');
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 4, trackLabel: 'track_v2' })],
+        })
+      );
+      expect(index.attendeeIdForTrack('track_v2')).to.equal('client1');
+    });
+
+    it('resolves track id to external user id after client reconnnect', () => {
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [
+            new SdkStreamDescriptor({
+              streamId: 2,
+              groupId: 1,
+              attendeeId: 'client1',
+              externalUserId: 'client1-ext',
+            }),
+            new SdkStreamDescriptor({
+              streamId: 4,
+              groupId: 1,
+              attendeeId: 'client1',
+              externalUserId: 'client1-ext',
+            }),
+          ],
+        })
+      );
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 4, trackLabel: 'track_v2' })],
+        })
+      );
+      expect(index.externalUserIdForTrack('track_v2')).to.equal('client1-ext');
+
+      index.integrateIndexFrame(new SdkIndexFrame({ atCapacity: false, sources: [] }));
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [],
+        })
+      );
+      index.integrateIndexFrame(new SdkIndexFrame({ atCapacity: false, sources: [] }));
+
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [
+            new SdkStreamDescriptor({
+              streamId: 12,
+              groupId: 3,
+              attendeeId: 'client1p',
+              externalUserId: 'client1p-ext',
+            }),
+            new SdkStreamDescriptor({
+              streamId: 14,
+              groupId: 3,
+              attendeeId: 'client1p',
+              externalUserId: 'client1p-ext',
+            }),
+          ],
+        })
+      );
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 14, trackLabel: 'track_v2' })],
+        })
+      );
+
+      expect(index.externalUserIdForTrack('track_v2')).to.equal('client1p-ext');
+    });
+
+    it('still finds externalAttendeeId after empty index before subscribe', () => {
+      index.integrateIndexFrame(new SdkIndexFrame({ atCapacity: false, sources: [] }));
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [
+            new SdkStreamDescriptor({
+              streamId: 2,
+              groupId: 2,
+              attendeeId: 'client1',
+              externalUserId: 'client1-ext',
+            }),
+          ],
+        })
+      );
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 2, trackLabel: 'track_v2' })],
+        })
+      );
+
+      expect(index.externalUserIdForTrack('track_v2')).to.equal('client1-ext');
+
+      index.integrateIndexFrame(new SdkIndexFrame({ atCapacity: false, sources: [] }));
+      index.integrateIndexFrame(
+        new SdkIndexFrame({
+          atCapacity: false,
+          sources: [
+            new SdkStreamDescriptor({
+              streamId: 3,
+              groupId: 2,
+              attendeeId: 'client1',
+              externalUserId: 'client1-ext',
+            }),
+          ],
+        })
+      );
+      expect(index.attendeeIdForTrack('track_v2')).to.equal('client1');
+
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 3, trackLabel: 'track_v2' })],
+        })
+      );
+      expect(index.attendeeIdForTrack('track_v2')).to.equal('client1');
     });
 
     it('ignores track mapping with empty track label or zero-valued stream id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(
         new SdkSubscribeAckFrame({
           tracks: [
@@ -751,20 +876,16 @@ describe('DefaultVideoStreamIndex', () => {
     it('resolves a track id to an attendee id', () => {
       expect(index.externalUserIdForTrack('4107')).to.equal('');
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.externalUserIdForTrack('4107')).to.equal('a0ff-ext');
     });
 
     it('returns empty string if externalUserId not in message', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.externalUserIdForTrack('b18b9db2')).to.equal('');
-    });
-
-    it('resolves a track id to an attendee id when index frame and subscribe ack received in swapped order', () => {
-      index.integrateSubscribeAckFrame(subackFrame);
-      index.integrateIndexFrame(indexFrame);
-      expect(index.externalUserIdForTrack('4107')).to.equal('a0ff-ext');
     });
 
     it('returns empty string if index frame never integrated', () => {
@@ -779,18 +900,21 @@ describe('DefaultVideoStreamIndex', () => {
 
     it('returns empty string on unmapped track id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.externalUserIdForTrack('85e9')).to.equal('');
     });
 
     it('returns empty string on unmapped stream id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.externalUserIdForTrack('9318')).to.equal('');
     });
 
     it('resolves a track id to an externalUserId after updating index frame', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       index.integrateIndexFrame(
         new SdkIndexFrame({
@@ -830,11 +954,14 @@ describe('DefaultVideoStreamIndex', () => {
           ],
         })
       );
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(subackFrame);
       expect(index.externalUserIdForTrack('9318')).to.equal('cd3f2893-ext');
     });
 
     it('resolves a track id to an externalUserId after updating subscribe ack frame', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       index.integrateSubscribeAckFrame(
         new SdkSubscribeAckFrame({
@@ -851,6 +978,7 @@ describe('DefaultVideoStreamIndex', () => {
 
     it('ignores track mapping with empty track label or zero-valued stream id', () => {
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(
         new SdkSubscribeAckFrame({
           tracks: [
@@ -901,6 +1029,7 @@ describe('DefaultVideoStreamIndex', () => {
     it('resolves a stream id to an attendee id', () => {
       expect(index.attendeeIdForStreamId(1)).to.equal('');
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.attendeeIdForStreamId(1)).to.equal('688c');
       expect(index.attendeeIdForStreamId(2)).to.equal('4d82');
@@ -909,6 +1038,7 @@ describe('DefaultVideoStreamIndex', () => {
     it('returns empty string if stream id could not be resolved', () => {
       expect(index.attendeeIdForStreamId(1)).to.equal('');
       index.integrateIndexFrame(indexFrame);
+      index.subscribeFrameSent();
       index.integrateSubscribeAckFrame(subackFrame);
       expect(index.attendeeIdForStreamId(3)).to.equal('');
     });
@@ -1131,6 +1261,82 @@ describe('DefaultVideoStreamIndex', () => {
       index.integrateIndexFrame(indexFrame);
       expect(index.groupIdForStreamId(1)).to.equal(1);
       expect(index.groupIdForStreamId(6)).to.equal(undefined);
+    });
+  });
+
+  describe('streamIdInSameGroup', () => {
+    it('Basic functionality', () => {
+      const indexFrame = new SdkIndexFrame({
+        sources: [
+          new SdkStreamDescriptor({
+            streamId: 1,
+            groupId: 1,
+            maxBitrateKbps: 1400,
+            avgBitrateBps: 1111 * 1000,
+            attendeeId: '688c',
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+          new SdkStreamDescriptor({
+            streamId: 2,
+            groupId: 1,
+            maxBitrateKbps: 200,
+            attendeeId: '4d82',
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+          new SdkStreamDescriptor({
+            streamId: 4,
+            groupId: 5,
+            maxBitrateKbps: 800,
+            attendeeId: 'a0ff',
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+        ],
+      });
+      index.integrateIndexFrame(indexFrame);
+      expect(index.StreamIdsInSameGroup(1, 2)).to.equal(true);
+      expect(index.StreamIdsInSameGroup(1, 4)).to.equal(false);
+    });
+
+    it('Recognizes groupId across subscribes', () => {
+      let indexFrame = new SdkIndexFrame({
+        sources: [
+          new SdkStreamDescriptor({
+            streamId: 3,
+            groupId: 2,
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+          new SdkStreamDescriptor({
+            streamId: 4,
+            groupId: 2,
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+        ],
+      });
+      index.integrateIndexFrame(indexFrame);
+      expect(index.StreamIdsInSameGroup(3, 4)).to.equal(true);
+      index.subscribeFrameSent();
+      index.integrateSubscribeAckFrame(
+        new SdkSubscribeAckFrame({
+          tracks: [new SdkTrackMapping({ streamId: 4, trackLabel: 'track_v2' })],
+        })
+      );
+
+      indexFrame = new SdkIndexFrame({
+        sources: [
+          new SdkStreamDescriptor({
+            streamId: 3,
+            groupId: 2,
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+          new SdkStreamDescriptor({
+            streamId: 5,
+            groupId: 2,
+            mediaType: SdkStreamMediaType.VIDEO,
+          }),
+        ],
+      });
+      index.integrateIndexFrame(indexFrame);
+      expect(index.StreamIdsInSameGroup(3, 4)).to.equal(true);
     });
   });
 });

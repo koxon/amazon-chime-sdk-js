@@ -20,7 +20,7 @@ const ivs = new AWS.IVS();
 const ecs = new AWS.ECS();
 
 // Set the AWS SDK Chime endpoint. The global endpoint is https://service.chime.aws.amazon.com.
-chime.endpoint = new AWS.Endpoint('https://service.chime.aws.amazon.com');
+chime.endpoint = new AWS.Endpoint(process.env.CHIME_ENDPOINT);
 
 // Read resource names from the environment
 const meetingsTableName = process.env.MEETINGS_TABLE_NAME;
@@ -71,6 +71,11 @@ exports.join = async(event, context) => {
       // Any meeting ID you wish to associate with the meeting.
       // For simplicity here, we use the meeting title.
       ExternalMeetingId: query.title.substring(0, 64),
+
+      // Tags associated with the meeting. They can be used in cost allocation console
+      Tags: [
+        { Key: 'Department', Value: 'RND'}
+      ]
     };
     console.info('Creating new meeting: ' + JSON.stringify(request));
     meeting = await chime.createMeeting(request).promise();
@@ -222,7 +227,12 @@ exports.logs = async (event, context) => {
   try {
     await cloudWatchClient.putLogEvents(putLogEventsInput).promise();
   } catch (error) {
-    console.error(`Failed to put CloudWatch log events with error ${error.message} and params ${JSON.stringify(putLogEventsInput)}`);
+    const errorMessage = `Failed to put CloudWatch log events with error ${error} and params ${JSON.stringify(putLogEventsInput)}`;
+    if (error.code === 'InvalidSequenceTokenException' || error.code === 'DataAlreadyAcceptedException') {
+      console.warn(errorMessage);
+    } else {
+      console.error(errorMessage);
+    }
   }
   return response(200, 'application/json', JSON.stringify({}));
 };
@@ -283,6 +293,20 @@ async function ensureLogStream(cloudWatchClient, logStreamName) {
     logStreamName: logStreamName,
   }).promise();
   return null;
+}
+
+exports.create_log_stream = async (event, context, callback) => {
+  const body = JSON.parse(event.body);
+  if (!body.meetingId || !body.attendeeId) {
+    return response(400, 'application/json', JSON.stringify({error: 'Need properties: meetingId, attendeeId'}));
+  }
+  const logStreamName = `ChimeSDKMeeting_${body.meetingId.toString()}_${body.attendeeId.toString()}`;
+  const cloudWatchClient = new AWS.CloudWatchLogs({ apiVersion: '2014-03-28' });
+  await cloudWatchClient.createLogStream({
+    logGroupName: logGroupName,
+    logStreamName: logStreamName,
+  }).promise();
+  return response(200, 'application/json', JSON.stringify({}));
 }
 
 function response(statusCode, contentType, body) {

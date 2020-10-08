@@ -5,7 +5,11 @@ import { Substitute } from '@fluffy-spoon/substitute';
 
 import TimeoutScheduler from '../../src/scheduler/TimeoutScheduler';
 import SafariSDPMock from '../sdp/SafariSDPMock';
+import DisplayMediaState from './DisplayMediaState';
 import DOMMockBehavior from './DOMMockBehavior';
+import NotAllowedError from './NotAllowedError';
+import Overconstrainerd from './OverconstrainedError';
+import UserMediaState from './UserMediaState';
 
 // eslint-disable-next-line
 const GlobalAny = global as any;
@@ -171,7 +175,10 @@ export default class DOMMockBuilder {
       stop(): void {
         if (this.readyState === 'live') {
           this.readyState = 'ended';
-          if (this.listeners.hasOwnProperty('ended')) {
+          if (
+            this.listeners.hasOwnProperty('ended') &&
+            mockBehavior.triggeredEndedEventForStopStreamTrack
+          ) {
             this.listeners.ended.forEach((listener: MockListener) =>
               listener({
                 ...Substitute.for(),
@@ -304,8 +311,15 @@ export default class DOMMockBuilder {
       getDisplayMedia(
         _constraints: MockMediaStreamConstraints
       ): Promise<typeof GlobalAny.MediaStream> {
-        const mediaStream = Substitute.for<typeof GlobalAny.MediaStream>();
-        return Promise.resolve(mediaStream);
+        if (mockBehavior.getDisplayMediaResult === DisplayMediaState.Success) {
+          const mediaStreamMaker: typeof GlobalAny.MediaStream = GlobalAny.MediaStream;
+          const mediaStream = new mediaStreamMaker();
+          return Promise.resolve(mediaStream);
+        } else if (mockBehavior.getDisplayMediaResult === DisplayMediaState.PermissionDenied) {
+          return Promise.reject(new NotAllowedError('Permission denied'));
+        } else {
+          return Promise.reject(new Error('failed to get display media'));
+        }
       }
 
       async getUserMedia(
@@ -341,6 +355,17 @@ export default class DOMMockBuilder {
             mediaStream.active = true;
             resolve(mediaStream);
           } else {
+            if (
+              mockBehavior.getUserMediaResult &&
+              mockBehavior.getUserMediaResult === UserMediaState.OverConstrained
+            ) {
+              reject(new Overconstrainerd('Resolution not supported'));
+            } else if (
+              mockBehavior.getUserMediaResult &&
+              mockBehavior.getUserMediaResult === UserMediaState.PermissionDenied
+            ) {
+              reject(new NotAllowedError('Permission denied'));
+            }
             reject(new Error('failed to get media device'));
           }
         });
@@ -356,7 +381,7 @@ export default class DOMMockBuilder {
           if (mockBehavior.enumerateDeviceList) {
             deviceLists = mockBehavior.enumerateDeviceList;
           } else {
-            let label = this.gotLabels ? 'fakeLabel' : '';
+            const label = this.gotLabels ? 'fakeLabel' : '';
             deviceLists = [
               { deviceId: ++mockBehavior.deviceCounter + '', kind: 'audioinput', label: label },
               { deviceId: ++mockBehavior.deviceCounter + '', kind: 'videoinput', label: label },
@@ -476,6 +501,10 @@ export default class DOMMockBuilder {
     };
 
     GlobalAny.window = GlobalAny;
+
+    GlobalAny.Audio = class MockAudio {
+      constructor(public src?: string) {}
+    };
 
     GlobalAny.Event = class MockEvent {
       track: typeof GlobalAny.MediaStreamTrack;
@@ -765,7 +794,6 @@ export default class DOMMockBuilder {
       parameter: RTCRtpSendParameters;
       constructor(track: MediaStreamTrack) {
         this.track = track;
-        // eslint-disable-next-line @typescript-eslint/no-object-literal-type-assertion
         this.parameter = {
           degradationPreference: null,
           encodings: [],
@@ -852,13 +880,13 @@ export default class DOMMockBuilder {
     GlobalAny.MediaQueryList = class MockMediaQueryList {
       constructor() {}
 
-      addEventListener(_type: string, listener: () => {}): void {
+      addEventListener(_type: string, listener: () => void): void {
         asyncWait(() => {
           listener();
         });
       }
 
-      addListener(listener: () => {}): void {
+      addListener(listener: () => void): void {
         asyncWait(() => {
           listener();
         });
@@ -931,7 +959,9 @@ export default class DOMMockBuilder {
       }
 
       createMediaStreamDestination(): MediaStreamAudioDestinationNode {
-        return new GlobalAny.MediaStreamAudioDestinationNode();
+        return mockBehavior.createMediaStreamDestinationSuccess
+          ? new GlobalAny.MediaStreamAudioDestinationNode()
+          : null;
       }
 
       createMediaStreamSource(mediaStream: MediaStream): MediaStreamAudioSourceNode {
@@ -942,7 +972,9 @@ export default class DOMMockBuilder {
 
       createAnalyser(): AnalyserNode {
         // @ts-ignore
-        return {};
+        return {
+          context: (this as unknown) as BaseAudioContext,
+        };
       }
 
       createBufferSource(): AudioBufferSourceNode {
@@ -952,22 +984,35 @@ export default class DOMMockBuilder {
       createGain(): GainNode {
         // @ts-ignore
         return {
+          context: (this as unknown) as BaseAudioContext,
           // @ts-ignore
           connect(_destinationParam: AudioParam, _output?: number): void {},
           // @ts-ignore
-          gain: {},
+          disconnect(_destinationParam: AudioParam): void {},
+          // @ts-ignore
+          gain: {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            linearRampToValueAtTime(value: number, endTime: number): AudioParam {
+              // @ts-ignore
+              return {};
+            },
+          },
         };
       }
 
       createOscillator(): OscillatorNode {
         // @ts-ignore
         return {
+          context: (this as unknown) as BaseAudioContext,
           // @ts-ignore
           start(_when?: number): void {},
+          stop(): void {},
           // @ts-ignore
           connect(destinationNode: AudioNode, _output?: number, _input?: number): AudioNode {
             return destinationNode;
           },
+          // @ts-ignore
+          disconnect(_destinationNode: AudioNode): void {},
           // @ts-ignore
           frequency: {},
         };
@@ -1066,6 +1111,7 @@ export default class DOMMockBuilder {
     delete GlobalAny.matchMedia;
     delete GlobalAny.document;
     delete GlobalAny.requestAnimationFrame;
+    delete GlobalAny.Audio;
     delete GlobalAny.AudioContext;
     delete GlobalAny.AudioBufferSourceNode;
     delete GlobalAny.AudioBuffer;

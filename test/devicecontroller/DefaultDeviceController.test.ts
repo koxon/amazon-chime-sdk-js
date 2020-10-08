@@ -175,6 +175,30 @@ describe('DefaultDeviceController', () => {
     });
   });
 
+  describe('getVideoInputQuality', () => {
+    it('get video input quality settings', async () => {
+      const width = 640;
+      const height = 360;
+      const frameRate = 15;
+      const maxBandwidthKbps = 600;
+      deviceController.chooseVideoInputQuality(width, height, frameRate, maxBandwidthKbps);
+
+      const videoInputQualitySettings = deviceController.getVideoInputQualitySettings();
+      expect(videoInputQualitySettings.videoWidth).to.equal(width);
+      expect(videoInputQualitySettings.videoHeight).to.equal(height);
+      expect(videoInputQualitySettings.videoFrameRate).to.equal(frameRate);
+      expect(videoInputQualitySettings.videoMaxBandwidthKbps).to.equal(maxBandwidthKbps);
+    });
+
+    it('get default video input quality settings', async () => {
+      const videoInputQualitySettings = deviceController.getVideoInputQualitySettings();
+      expect(videoInputQualitySettings.videoWidth).to.equal(960);
+      expect(videoInputQualitySettings.videoHeight).to.equal(540);
+      expect(videoInputQualitySettings.videoFrameRate).to.equal(15);
+      expect(videoInputQualitySettings.videoMaxBandwidthKbps).to.equal(1400);
+    });
+  });
+
   describe('chooseAudioInputDevice', () => {
     it('chooses no device', async () => {
       const device: Device = null;
@@ -277,7 +301,7 @@ describe('DefaultDeviceController', () => {
         'device-id-3',
         'device-id-4',
       ];
-      let releasedDevices = new Set();
+      const releasedDevices = new Set();
 
       class TestDeviceController extends DefaultDeviceController {
         releaseMediaStream(mediaStreamToRelease: MediaStream | null): void {
@@ -319,7 +343,7 @@ describe('DefaultDeviceController', () => {
         'device-id-3',
         'device-id-4',
       ];
-      let releasedDevices = new Set();
+      const releasedDevices = new Set();
       class TestDeviceControllerWithIOSSafari12 extends DefaultDeviceController {
         releaseMediaStream(mediaStreamToRelease: MediaStream | null): void {
           super.releaseMediaStream(mediaStreamToRelease);
@@ -650,6 +674,7 @@ describe('DefaultDeviceController', () => {
       // @ts-ignore
       await deviceController.acquireDisplayInputStream(constraints as MediaStreamConstraints);
       await new Promise(resolve => new TimeoutScheduler(100).start(resolve));
+      // @ts-ignore
       expect(spy.calledOnceWith(constraints as MediaStreamConstraints)).to.be.true;
     });
   });
