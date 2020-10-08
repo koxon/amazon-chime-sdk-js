@@ -8,6 +8,8 @@ let bucket = ``;
 let stack = ``;
 let app = `meeting`;
 let useEventBridge = false;
+let ecs_cluster = null;
+let task_definition = null;
 let chimeEndpoint = 'https://service.chime.aws.amazon.com'
 
 const packages = [
@@ -17,14 +19,16 @@ const packages = [
 ];
 
 function usage() {
-  console.log(`Usage: deploy.sh [-r region] [-b bucket] [-s stack] [-a application] [-e]`);
-  console.log(`  -r, --region         Target region, default '${region}'`);
-  console.log(`  -b, --s3-bucket      S3 bucket for deployment, required`);
-  console.log(`  -s, --stack-name     CloudFormation stack name, required`);
-  console.log(`  -a, --application    Browser application to deploy, default '${app}'`);
-  console.log(`  -e, --event-bridge   Enable EventBridge integration, default is no integration`);
+  console.log(`Usage: deploy.sh -c cluster -t task_definition [-r region] [-b bucket] [-s stack] [-a application] [-e]`);
+  console.log(`  -r, --region       Target region, default '${region}'`);
+  console.log(`  -b, --s3-bucket    S3 bucket for deployment, required`);
+  console.log(`  -s, --stack-name   CloudFormation stack name, required`);
+  console.log(`  -a, --application  Browser application to deploy, default '${app}'`);
+  console.log(`  -c, --ecs_cluster   The ECS cluster to run the task on, required`);
+  console.log(`  -t, --task_definition  The ECS task definition to run for broadcasting, required`);
+  console.log(`  -e, --event-bridge Enable EventBridge integration, default is no integration`);
   console.log(`  -c, --chime-endpoint AWS SDK Chime endpoint, default is '${chimeEndpoint}'`);
-  console.log(`  -h, --help           Show help and exit`);
+  console.log(`  -h, --help         Show help and exit`);
 }
 
 function ensureBucket() {
@@ -72,6 +76,12 @@ function parseArgs() {
         break;
       case '-e': case '--event-bridge':
         useEventBridge = true;
+        break;      
+      case '-c': case '--ecs_cluster':
+        ecs_cluster = getArgOrExit(++i, args);
+        break;      
+      case '-t': case '--task_definition':
+        task_definition = getArgOrExit(++i, args);
         break;
       case '-c': case '--chime-endpoint':
         chimeEndpoint = getArgOrExit(++i, args)
@@ -162,7 +172,7 @@ spawnOrFail('sam', ['package', '--s3-bucket', `${bucket}`,
                     '--region',  `${region}`]);
 console.log('Deploying serverless application');
 spawnOrFail('sam', ['deploy', '--template-file', './build/packaged.yaml', '--stack-name', `${stack}`,
-                    '--parameter-overrides', `UseEventBridge=${useEventBridge} ChimeEndpoint=${chimeEndpoint}`,
+                    '--parameter-overrides', `UseEventBridge=${useEventBridge} ChimeEndpoint=${chimeEndpoint} TaskDefinition=${task_definition} EcsCluster=${ecs_cluster}`,
                     '--capabilities', 'CAPABILITY_IAM', '--region', `${region}`, '--no-fail-on-empty-changeset']);
 console.log("Amazon Chime SDK Meeting Demo URL: ");
 const output=spawnOrFail('aws', ['cloudformation', 'describe-stacks', '--stack-name', `${stack}`,
@@ -170,3 +180,4 @@ const output=spawnOrFail('aws', ['cloudformation', 'describe-stacks', '--stack-n
 if (app === 'meeting') {
   console.log(output.replace(/Prod/, 'Prod/v2'));
 }
+

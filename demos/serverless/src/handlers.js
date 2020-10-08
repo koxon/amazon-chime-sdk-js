@@ -13,6 +13,12 @@ const ddb = new AWS.DynamoDB();
 // the meeting is hosted in.
 const chime = new AWS.Chime({ region: 'us-east-1' });
 
+// IVS SDK
+const ivs = new AWS.IVS();
+
+// ECS SDK
+const ecs = new AWS.ECS();
+
 // Set the AWS SDK Chime endpoint. The global endpoint is https://service.chime.aws.amazon.com.
 chime.endpoint = new AWS.Endpoint(process.env.CHIME_ENDPOINT);
 
@@ -20,6 +26,9 @@ chime.endpoint = new AWS.Endpoint(process.env.CHIME_ENDPOINT);
 const meetingsTableName = process.env.MEETINGS_TABLE_NAME;
 const logGroupName = process.env.BROWSER_LOG_GROUP_NAME;
 const sqsQueueArn = process.env.SQS_QUEUE_ARN;
+const task_definition = process.env.TASK_DEFINITION;
+const ecs_cluster = process.env.ECS_CLUSTER;
+const rest_api = process.env.REST_API;
 const useSqsInsteadOfEventBridge = process.env.USE_EVENT_BRIDGE === 'false';
 
 // === Handlers ===
@@ -32,7 +41,7 @@ exports.index = async (event, context, callback) => {
 exports.indexV2 = async (event, context, callback) => {
   // Return the contents of the index V2 page
   return response(200, 'text/html', fs.readFileSync('./indexV2.html', {encoding: 'utf8'}));
-};
+}; 
 
 exports.join = async(event, context) => {
   const query = event.queryStringParameters;
@@ -92,6 +101,85 @@ exports.join = async(event, context) => {
       Attendee: attendee,
     },
   }, null, 2));
+};
+
+exports.broadcast = async (event, context) => {
+
+  console.log(event)
+
+  // Fetch the meeting by title
+  const meeting = await getMeeting(event.queryStringParameters.title);
+  console.log(meeting)
+  const meeting_id = meeting.Meeting.MeetingId; 
+  let rtmp_url;
+
+  try {
+    // Create the channel
+    console.log("GO CREATE CHANNEL"); 
+    console.log(meeting_id);
+    var params = {
+      latencyMode: 'NORMAL',
+      name: event.queryStringParameters.title,
+      tags: {
+        'meeting_id': meeting.Meeting.MeetingId
+      },
+      type: 'STANDARD'
+    };
+    var createChannelPromise = await ivs.createChannel(params).promise();
+
+    console.log("CHANNEL CREATED"); 
+    console.log(createChannelPromise);           // successful response
+    rtmp_url = "rtmps://" + createChannelPromise.channel.ingestEndpoint + ":443/app/" + createChannelPromise.streamKey.value;
+  
+  } catch (err) {
+    console.log("CREATED CHANNEL ERROR"); 
+    console.log(err, err.stack); // an error occurred
+    return response(501, 'application/json', JSON.stringify({error: 'Unable to create IVS channel: ' + err}));
+  }
+
+  try {
+    // Start the fargate task
+    console.log("GO START ECS TASK"); 
+    console.log(ecs_cluster); 
+    console.log(task_definition); 
+    console.log(meeting_id);
+    console.log(rtmp_url);
+    var params = {
+      taskDefinition: task_definition, 
+      cluster: ecs_cluster,
+      networkConfiguration: {
+        awsvpcConfiguration: { 
+          subnets: [ "subnet-012cca53ddf1a10e6" ]
+        }
+      },
+      overrides: {
+        containerOverrides: [
+          {
+            name: 'FargateTaskChimeBroadcast',
+            environment: [
+              {
+                name: 'MEETING_URL',
+                value: "https://l1vnho4wj2.execute-api.us-east-1.amazonaws.com/Prod/v2/?m=" + event.queryStringParameters.title + "&broadcast=true"
+              },
+              {
+                name: 'RTMP_URL',
+                value: rtmp_url
+              }
+            ]
+          }
+        ]
+      }
+    };
+    var createECSTaskPromise = await ecs.runTask(params).promise();
+    console.log("TASK STARTED"); 
+    console.log(createECSTaskPromise);  
+  } catch (err) {
+    console.log("START TASK ERROR"); 
+    console.log(err, err.stack); // an error occurred
+    return response(501, 'application/json', JSON.stringify({error: 'Unable to create IVS channel: ' + err}));
+  }
+
+  return response(200, 'application/json', JSON.stringify({info: 'Broadcast started'}));
 };
 
 exports.end = async (event, context) => {

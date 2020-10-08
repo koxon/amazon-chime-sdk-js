@@ -114,6 +114,24 @@
       </div>
     </div>
 
+    <!-- Failure card if broadcast fails -->
+
+    <div id="flow-failed-broadcast" class="flow">
+      <div class="container">
+        <form id="form-failed-broadcast">
+          <div class="card border-warning mb-3" style="max-width: 20rem;">
+            <div id="failed-broadcast" class="card-header"></div>
+            <div class="card-body">
+              <h4 class="card-title">Unable to start broadcast</h4>
+              <p class="card-text">There was an issue starting that broadcast.</p>
+              <small id="failed-broadcast-error" class="text-muted"></small>
+            </div>
+          </div>
+          <button class="btn btn-lg btn-outline-warning btn-block" type="submit">OK</button>
+        </form>
+      </div>
+    </div>
+
     <!-- Prompt for permission to get access to device labels -->
 
     <div id="flow-need-permission" class="flow">
