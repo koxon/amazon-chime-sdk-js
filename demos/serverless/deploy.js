@@ -141,6 +141,7 @@ parseArgs();
 ensureTools();
 ensureApp(app);
 if (app === 'meeting') {
+  ensureApp('simpleTiles');
   ensureApp('meetingV2');
 }
 
@@ -160,6 +161,7 @@ for (const package of packages) {
 fs.copySync(appHtml(app), 'src/index.html');
 if (app === 'meeting') {
   fs.copySync(appHtml('meetingV2'), 'src/indexV2.html');
+  fs.copySync(appHtml('simpleTiles'), 'src/simpleTiles.html');
 }
 
 spawnOrFail('sam', ['package', '--s3-bucket', `${bucket}`,
@@ -175,3 +177,4 @@ const output=spawnOrFail('aws', ['cloudformation', 'describe-stacks', '--stack-n
 if (app === 'meeting') {
   console.log(output.replace(/Prod/, 'Prod/v2'));
 }
+

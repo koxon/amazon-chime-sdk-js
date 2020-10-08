@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="shortcut icon" href="data:image/x-icon;," type="image/x-icon">
-  <title>Broadcaster client</title>
+  <title>Fargate Chime client</title>
 </head>
 <body>
 
@@ -212,7 +212,7 @@
 <!-- In-meeting screen -->
 
 <div id="flow-meeting" class="flow" style="position:absolute;left:0;top:0;bottom:55px;right:0">
-  <div class="p-2 d-none d-sm-block align-items-end" style="position:fixed;right:0;bottom:0;left:0;">
+  <div id="meetingFooter" class="p-2 d-none d-sm-block align-items-end" style="position:fixed;right:0;bottom:0;left:0;">
     <div class="row align-items-end">
       <div class="col">
         <div id="chime-meeting-id" class="text-muted"></div>
@@ -293,7 +293,7 @@
       </div>
     </div>
     <div id="roster-tile-container" class="row flex-sm-grow-1 overflow-hidden h-100">
-      <div id="roster-message-container" class="d-flex flex-column col-12 col-sm-6 col-md-5 col-lg-4 h-100">
+      <div id="roster-message-container" class="d-flex flex-column col-12 col-sm-6 col-md-6 col-lg-12 h-100">
         <div class="bs-component" style="flex: 1 1 auto; overflow-y: scroll; height: 50%;">
           <ul id="roster" class="list-group"></ul>
         </div>
@@ -306,7 +306,7 @@
           </div>
         </div>
       </div>
-      <div id="tile-container" class="col-12 col-sm-6 col-md-7 col-lg-8 my-4 my-sm-0 h-100" style="overflow-y: scroll">
+      <div id="tile-container" class="col-12 col-sm-6 col-md-6 col-lg-12 my-4 my-sm-0 h-100" style="overflow-y: scroll">
         <div id="tile-area" class="w-100 h-100">
           <div id="tile-0" style="display:none">
             <video id="video-0" class="w-100 h-100"></video>

@@ -52,6 +52,23 @@ Resources:
       Roles:
         - Ref: ChimeSdkJoinLambdaRole
         - Ref: ChimeSdkEndLambdaRole
+  BroadcastAccessPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: BroadcastAccess
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'ivs:CreateChannel'
+              - 'ivs:TagResource'
+              - 'ecs:StartTask'
+              - 'ecs:RunTask'
+              - 'iam:PassRole'
+            Resource: '*'
+      Roles:
+        - Ref: BroadcastLambdaRole
   CloudWatchAccessPolicy:
     Type: AWS::IAM::Policy
     Properties:
@@ -115,6 +132,18 @@ Resources:
           Properties:
             Path: /v2/
             Method: GET
+  ChimeSdkIndexBroadcastLambda:
+    Type: 'AWS::Serverless::Function'
+    Properties:
+      Handler: handlers.simpleTiles
+      Runtime: nodejs10.x
+      CodeUri: src/
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /simpleTiles/
+            Method: GET
   ChimeSdkJoinLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -132,6 +161,11 @@ Resources:
           Properties:
             Path: /join
             Method: POST
+        Api2:
+          Type: Api
+          Properties:
+            Path: /simpleTiles/join
+            Method: POST
   ChimeSdkEndLambda:
     Type: AWS::Serverless::Function
     Properties:
@@ -145,6 +179,20 @@ Resources:
           Type: Api
           Properties:
             Path: /end
+            Method: POST
+  BroadcastLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: handlers.broadcast
+      CodeUri: src/
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Meetings
+      Events:
+        Api1:
+          Type: Api
+          Properties:
+            Path: /broadcast
             Method: POST
   ChimeSQSQueueLambda:
     Type: AWS::Serverless::Function
@@ -182,6 +230,11 @@ Resources:
           Type: Api
           Properties:
             Path: /logs
+            Method: POST
+        Api2:
+          Type: Api
+          Properties:
+            Path: /simpleTiles/logs
             Method: POST
   ChimeNotificationsQueuePolicy:
     Type: AWS::SQS::QueuePolicy

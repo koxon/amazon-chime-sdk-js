@@ -42,6 +42,11 @@ exports.indexV2 = async (event, context, callback) => {
   return response(200, 'text/html', fs.readFileSync('./indexV2.html', {encoding: 'utf8'}));
 }; 
 
+exports.simpleTiles = async (event, context, callback) => {
+  // Return the contents of the index V2 page
+  return response(200, 'text/html', fs.readFileSync('./simpleTiles.html', {encoding: 'utf8'}));
+}; 
+
 exports.join = async(event, context) => {
   const query = event.queryStringParameters;
   if (!query.title || !query.name || !query.region) {
@@ -98,55 +103,82 @@ exports.join = async(event, context) => {
 };
 
 exports.broadcast = async (event, context) => {
+
+  console.log(event)
+
   // Fetch the meeting by title
   const meeting = await getMeeting(event.queryStringParameters.title);
+  console.log(meeting)
   const meeting_id = meeting.Meeting.MeetingId; 
+  let rtmp_url;
 
-  // Create the channel
-  var params = {
-    latencyMode: NORMAL,
-    name: 'event.queryStringParameters.title',
-    tags: {
-      'meeting_id': meeting.Meeting.MeetingId
-    },
-    type: STANDARD
-  };
-  ivs.createChannel(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
-    else {
-      console.log(data);           // successful response
+  try {
+    // Create the channel
+    console.log("GO CREATE CHANNEL"); 
+    console.log(meeting_id);
+    var params = {
+      latencyMode: 'NORMAL',
+      name: event.queryStringParameters.title,
+      tags: {
+        'meeting_id': meeting.Meeting.MeetingId
+      },
+      type: 'STANDARD'
+    };
+    var createChannelPromise = await ivs.createChannel(params).promise();
 
-      const url = data.channel.playbackUrl;
-    }
-  });
+    console.log("CHANNEL CREATED"); 
+    console.log(createChannelPromise);           // successful response
+    rtmp_url = "rtmps://" + createChannelPromise.channel.ingestEndpoint + ":443/app/" + createChannelPromise.streamKey.value;
+  
+  } catch (err) {
+    console.log("CREATED CHANNEL ERROR"); 
+    console.log(err, err.stack); // an error occurred
+    return response(501, 'application/json', JSON.stringify({error: 'Unable to create IVS channel: ' + err}));
+  }
 
-  // Start the fargate task
-  var params = {
-    taskDefinition: task_definition, 
-    cluster: ecs_cluster,
-    overrides: {
-      containerOverrides: [
-        {
-          environment: [
-            {
-              name: 'MEETING_URL',
-              value: "https://chime.aws/" + meeting_id
-            },
-            {
-              name: 'RTMP_URL',
-              value: url
-            }
-          ]
+  try {
+    // Start the fargate task
+    console.log("GO START ECS TASK"); 
+    console.log(ecs_cluster); 
+    console.log(task_definition); 
+    console.log(meeting_id);
+    console.log(rtmp_url);
+    var params = {
+      taskDefinition: task_definition, 
+      cluster: ecs_cluster,
+      networkConfiguration: {
+        awsvpcConfiguration: { 
+          subnets: [ "subnet-012cca53ddf1a10e6" ]
         }
-      ]
-    }
-  };
-  ecs.startTask(params, function(err, data) {
-    if (err) console.log(err, err.stack); // an error occurred
-    else     console.log(data);           // successful response
-  });
+      },
+      overrides: {
+        containerOverrides: [
+          {
+            name: 'FargateTaskChimeBroadcast',
+            environment: [
+              {
+                name: 'MEETING_URL',
+                value: "https://4dbk25xda1.execute-api.us-east-1.amazonaws.com/Prod/?m=" + meeting_id + "&broadcast=true"
+              },
+              {
+                name: 'RTMP_URL',
+                value: rtmp_url
+              }
+            ]
+          }
+        ]
+      }
+    };
+    var createECSTaskPromise = await ecs.runTask(params).promise();
+    console.log("TASK STARTED"); 
+    console.log(createECSTaskPromise);  
+  } catch (err) {
+    console.log("START TASK ERROR"); 
+    console.log(err, err.stack); // an error occurred
+    return response(501, 'application/json', JSON.stringify({error: 'Unable to create IVS channel: ' + err}));
+  }
 
-  return response(200, 'application/json', JSON.stringify({}));
+  return response(200, 'application/json', JSON.stringify({info: 'Broadcast started'}));
 };
 
 exports.end = async (event, context) => {

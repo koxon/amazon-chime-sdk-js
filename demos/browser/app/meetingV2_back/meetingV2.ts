@@ -176,14 +176,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         await this.authenticate();
         await this.join();
         this.displayButtonStates();
-
-        console.error("GO NONE");
-        // this.noneElement('meeting-controls');
-        // this.noneElement('roster-message-container');
-        // this.noneElement('meetingFooter');
-        console.error("END NONE");
-        // document.getElementById("tile-container").removeAttribute('style');
-
         this.switchToFlow('flow-meeting');
       });
     } else {
@@ -212,11 +204,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       this.meeting = (document.getElementById('inputMeeting') as HTMLInputElement).value;
       this.name = (document.getElementById('inputName') as HTMLInputElement).value;
       this.region = (document.getElementById('inputRegion') as HTMLInputElement).value;
-      if (!this.region) {
-        this.region = this.getRegion();
-      }
-      console.log("region:");
-      console.log(this.region);
       new AsyncScheduler().start(
         async (): Promise<void> => {
           let chimeMeetingId: string = '';
@@ -612,14 +599,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     }
   }
 
-  hideElement(id: string): void {
-    (document.getElementById(id) as HTMLDivElement).style.visibility = 'hidden';
-  }
-
-  noneElement(id: string): void {
-    (document.getElementById(id) as HTMLDivElement).style.setProperty("display", "none", "important")
-  }
-
   showProgress(id: string): void {
     (document.getElementById(id) as HTMLDivElement).style.visibility = 'visible';
   }
@@ -967,9 +946,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   // eslint-disable-next-line
   async joinMeeting(): Promise<any> {
-    const region = this.region || 'us-east-1';
     const response = await fetch(
-      `${DemoMeetingApp.BASE_URL}join?title=${encodeURIComponent(this.meeting)}&name=${encodeURIComponent(this.name)}&region=${encodeURIComponent(region)}`,
+      `${DemoMeetingApp.BASE_URL}join?title=${encodeURIComponent(this.meeting)}&name=${encodeURIComponent(this.name)}&region=${encodeURIComponent(this.region)}`,
       {
         method: 'POST',
       }
@@ -1373,11 +1351,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   isBroadcaster(): boolean {
     return (new URL(window.location.href).searchParams.get('broadcast')) === 'true';
-  }  
-
-  getRegion(): string {
-    let region = new URL(window.location.href).searchParams.get('region');
-    return region;
   }
 
   async authenticate(): Promise<string> {

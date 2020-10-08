@@ -37,8 +37,8 @@ import {
 
 class DemoTileOrganizer {
   // this is index instead of length
-  static MAX_TILES = 17;
-  static LOCAL_VIDEO_INDEX = 16;
+  static MAX_TILES = 4;
+  static LOCAL_VIDEO_INDEX = 0;
   private tiles: { [id: number]: number } = {};
   public tileStates: {[id: number]: boolean } = {};
 
@@ -60,6 +60,8 @@ class DemoTileOrganizer {
     }
     throw new Error('no tiles are available');
   }
+
+
 
   releaseTileIndex(tileId: number): number {
     for (let index = 0; index <= DemoTileOrganizer.MAX_TILES; index++) {
@@ -111,6 +113,7 @@ export enum ContentShareType {
   ScreenCapture,
   VideoFile,
 };
+
 
 export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver, ContentShareObserver {
   static readonly DID: string = '+17035550122';
@@ -177,12 +180,13 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
         await this.join();
         this.displayButtonStates();
 
+
         console.error("GO NONE");
-        // this.noneElement('meeting-controls');
-        // this.noneElement('roster-message-container');
-        // this.noneElement('meetingFooter');
+        this.noneElement('meeting-controls');
+        this.noneElement('roster-message-container');
+        this.noneElement('meetingFooter');
         console.error("END NONE");
-        // document.getElementById("tile-container").removeAttribute('style');
+        document.getElementById("tile-container").removeAttribute('style');
 
         this.switchToFlow('flow-meeting');
       });
@@ -212,11 +216,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
       this.meeting = (document.getElementById('inputMeeting') as HTMLInputElement).value;
       this.name = (document.getElementById('inputName') as HTMLInputElement).value;
       this.region = (document.getElementById('inputRegion') as HTMLInputElement).value;
-      if (!this.region) {
-        this.region = this.getRegion();
-      }
-      console.log("region:");
-      console.log(this.region);
       new AsyncScheduler().start(
         async (): Promise<void> => {
           let chimeMeetingId: string = '';
@@ -612,20 +611,20 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
     }
   }
 
-  hideElement(id: string): void {
-    (document.getElementById(id) as HTMLDivElement).style.visibility = 'hidden';
-  }
-
-  noneElement(id: string): void {
-    (document.getElementById(id) as HTMLDivElement).style.setProperty("display", "none", "important")
-  }
-
   showProgress(id: string): void {
     (document.getElementById(id) as HTMLDivElement).style.visibility = 'visible';
   }
 
   hideProgress(id: string): void {
     (document.getElementById(id) as HTMLDivElement).style.visibility = 'hidden';
+  }
+
+  hideElement(id: string): void {
+    (document.getElementById(id) as HTMLDivElement).style.visibility = 'hidden';
+  }
+
+  noneElement(id: string): void {
+    (document.getElementById(id) as HTMLDivElement).style.setProperty("display", "none", "important")
   }
 
   switchToFlow(flow: string): void {
@@ -967,9 +966,8 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   // eslint-disable-next-line
   async joinMeeting(): Promise<any> {
-    const region = this.region || 'us-east-1';
     const response = await fetch(
-      `${DemoMeetingApp.BASE_URL}join?title=${encodeURIComponent(this.meeting)}&name=${encodeURIComponent(this.name)}&region=${encodeURIComponent(region)}`,
+      `${DemoMeetingApp.BASE_URL}join?title=${encodeURIComponent(this.meeting)}&name=${encodeURIComponent(this.name)}&region=${encodeURIComponent(this.region)}`,
       {
         method: 'POST',
       }
@@ -1373,11 +1371,6 @@ export class DemoMeetingApp implements AudioVideoObserver, DeviceChangeObserver,
 
   isBroadcaster(): boolean {
     return (new URL(window.location.href).searchParams.get('broadcast')) === 'true';
-  }  
-
-  getRegion(): string {
-    let region = new URL(window.location.href).searchParams.get('region');
-    return region;
   }
 
   async authenticate(): Promise<string> {
